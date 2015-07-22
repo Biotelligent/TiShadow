@@ -7,7 +7,7 @@ var config = require("../cli/support/config");
 require('colors');
 
 color = {
-  DEBUG: 'blue',
+  DEBUG: 'grey',
   WARN: 'yellow',
   REPL: 'grey',
   TRACE: 'grey',

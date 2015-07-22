@@ -21,7 +21,7 @@ exports.connect = function(onconnect) {
   });
   socket.on('device_connect', function(e){
     running = running++;
-    logger.log("INFO", e.name, "Connected");
+    logger.log("WARN", e.name, "Connected");
   });
   socket.on('device_disconnect', function(e){
     running = running--;

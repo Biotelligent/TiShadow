@@ -17,7 +17,7 @@ var multiparty = require('multiparty');
  */
 
 exports.index = function(req, res){
-  res.render('index', { title: 'TiShadow' });
+  res.render('index_justin', { title: 'TiShadow-J' });
 };
 exports.screencast = function(req, res){
   res.render('screencast', { title: 'TiShadow' });

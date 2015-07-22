@@ -96,10 +96,28 @@ exports.connect = function(o) {
     exports.closeApp();
   });
 
+  socket.on('clearlogs', function(data) {
+    exports.clearLogs();
+  });
+
+  socket.on('disconnect', function() {
+    if(o.disconnected) {
+      o.disconnected();
+    }
+  });
+
   socket.on('screenshot', function(data) {
     if (!isTarget(data)) {
       return;
     }
+    exports.screenshot(data);
+  });
+
+};
+
+exports.screenshot = function(data) {
+	data = data || {scale: 0.5};
+	log.info("JMH screenshot " + JSON.stringify(data));
     Ti.Media.takeScreenshot(function(o) {
       var image = o.media;
       if (data.scale) {
@@ -132,6 +150,10 @@ exports.disconnect = function() {
   if (socket) {
     socket.disconnect();
   }
+};
+exports.clearLogs = function() {
+  logs = [];
+  log.info('TiShadow.js cleared logs JMH');
 };
 
 var bundle;
