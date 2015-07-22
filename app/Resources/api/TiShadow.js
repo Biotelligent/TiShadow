@@ -128,14 +128,6 @@ exports.screenshot = function(data) {
       var imgStr = Ti.Utils.base64encode(image).toString();
       socket.emit("screenshot_taken", {image: imgStr});
     });
-  });
-
-  socket.on('disconnect', function() {
-    if(o.disconnected) {
-      o.disconnected();
-    }
-  });
-
 };
 
 exports.emitLog = function(e) {
