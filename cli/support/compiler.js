@@ -71,6 +71,8 @@ function copyI18n(file, callback) {
 };
 
 function finalise(file_list,callback) {
+  logger.warn("JMH cli/support/compiler finalise - creating bundle");
+
   // Bundle up to go
   var total = file_list.files.length;
   bundle.pack(file_list.files,function(written) {
@@ -88,14 +90,15 @@ function finalise(file_list,callback) {
   });
 }
 
-module.exports = function(env, callback) {
+module.exports = function(env, callback, hlcompile) {
   config.buildPaths(env, function() {
     if (env.jshint) {
       logger.info("Running JSHint");
       jshint.checkPath(config.jshint_path);
     }
+    var isHLCompile = (true === hlcompile) ? true : false;
 
-    logger.info("Beginning Build Process");
+    logger.warn("JMH cli/support/compiler Beginning Build Process isHLCompile=" + isHLCompile);
     // a js map of hashes must be built whether or not it is an update.
     if (config.isAlloy && !config.skipAlloyCompile) {
       if (config.platform === undefined) {
@@ -103,31 +106,55 @@ module.exports = function(env, callback) {
         process.exit();
       }
       async.detectSeries(config.platform, function(platform, callback) {
-        logger.info("Compiling Alloy for " + platform);
-        var args = ['compile', '-b','-l', '2', '--platform', platform, '--config', 'sourcemap=false'];
+        var alloy_command;
+        //var args = ['compile', '-b','-l', '2', '--platform', platform, '--config', 'sourcemap=false'];
+        var args = ['compile', '-b','-l', 'info', '--platform', platform, '--config', 'sourcemap=false'];
         if (config.alloyCompileFile) {
           args[7] = "sourcemap=false,file="+config.alloyCompileFile;
         }
-        var alloy_command;
-        if (config.useAppcCLI) {
+      	if (isHLCompile || config.isHyperloop) {
+      		args[0] = 'build';
+	        logger.warn("JMH cli/support/compiler building Hyperloop for platform appc ti " + args.join(" "));
+	        alloy_command = spawn("appc", ['ti'].concat(args), {stdio: "inherit"});
+      	} else if (config.useAppcCLI) {
+        	logger.warn("JMH Compiling Alloy appc " + ['alloy'].concat(args).join(" "));
           alloy_command = spawn("appc", ['alloy'].concat(args), {stdio: "inherit"});
         } else {
           alloy_command = spawn('alloy', args, {stdio: "inherit"});
         }
 
         alloy_command.on("exit", function(code) {
+        	logger.warn("JMH cli/support/compiler compile completed for " + platform + " code=" + code + " isHLCompile=" + isHLCompile);
           if (code !== 0) {
             logger.error("Alloy Compile Error\n");
             callback(true);
           }
-          if (fs.existsSync(config.res_alloy_path)) {
-            wrench.copyDirSyncRecursive(
-              config.res_alloy_path,
-              path.join(config.resources_path,(platform === 'ios' ? 'iphone' : platform),'alloy'),
-              {preserve:true,preserveFiles:true}
-            );
-          }
-          callback(false);
+
+          if (isHLCompile) {
+	        	logger.warn("JMH cli/support/compiler compile completed NOT cloning path, not execing beginCompile callback "   + config.res_alloy_path);
+          	//callback(false);
+          } else {
+	        	logger.warn("JMH cli/support/compiler compile completed cloning path "  + config.res_alloy_path);
+	          if (fs.existsSync(config.res_alloy_path)) {
+	            wrench.copyDirSyncRecursive(
+	              config.res_alloy_path,
+	              path.join(config.resources_path,(platform === 'ios' ? 'iphone' : platform),'alloy'),
+	              {preserve:true,preserveFiles:true}
+	            );
+	          }
+	          callback(false);
+	        }
+          // JMH
+          //var hyperloopplugin = config.plugins_path + '/hyperloop/hooks/' + platform + '/hyperloop';
+          /*
+          var hyperloopplugin = 'plugins/hyperloop/hooks/' + platform + '/hyperloop';
+          logger.info("JMH hyperloop plugin at " + hyperloopplugin);
+          var hyperloop = require(hyperloopplugin);
+          var hl = new hyperloop();
+          //hyperloop.init(); // _logger, _config, _cli, appc, hyperloopConfig, next
+          hl.prepareBuildX(logger, function(e){
+            logger.info("JMH hyperloop plugin callback for " + platform);
+          });*/
         });
         alloy_command.on("error", function() {
           logger.error("Alloy Compile Error\n");
@@ -144,6 +171,7 @@ module.exports = function(env, callback) {
       });;
       //Remove non-specific
     } else {
+     	logger.warn("JMH cli/support/compiler calling BuildMap and begin compile ");
       fs_map.buildMap();
       beginCompile(callback);
     }
@@ -151,33 +179,49 @@ module.exports = function(env, callback) {
 };
 
 function beginCompile(callback) {
-  var file_list,i18n_list,spec_list,assets_list;
+  var file_list,i18n_list,spec_list,assets_list,hyperloop_list;
+  var platformfolder = '';
+  if (config.platform && (config.platform.length > 0)) {
+  	platformfolder = config.platform[0];
+  }
+	config.hyperloop_path = path.join(config.hyperloop_path, platformfolder, 'js');
+
   if( config.isUpdate) {
     var last_stat = fs.statSync(config.last_updated_file);
     file_list = fs_map.mapFiles();
     if (config.isModule)  {
       assets_list = fs.getList(config.assets_path,last_stat.mtime);
     }
+    if (config.isHyperloop)  {
+      hyperloop_list = fs.getList(config.hyperloop_path,last_stat.mtime);
+    }
     i18n_list = fs.getList(config.i18n_path,last_stat.mtime);
     spec_list = fs.getList(config.spec_path,last_stat.mtime);
 
-    if (file_list.files.length === 0 && (!config.isModule || assets_list.files.length === 0) && i18n_list.files.length === 0 && spec_list.files.length === 0) {
+    if (file_list.files.length === 0 && (!config.isModule || assets_list.files.length === 0) && (!config.isHyperloop || hyperloop_list.files.length === 0) && i18n_list.files.length === 0 && spec_list.files.length === 0) {
       logger.warn("Nothing to update.");
       return;
     }
   } else {
-    if (!fs.existsSync(config.build_path)){
+   logger.warn("JMH tishadow/cli/support/compiler.js beginCompile() dirs config.tishadow_build=" + config.tishadow_build
+   + " config.tishadow_src=" + config.tishadow_src
+   + " config.tishadow_dist=" + config.tishadow_dist);
+
+   if (!fs.existsSync(config.build_path)){
       fs.mkdirSync(config.build_path, 0755);
     }
     //Clean Build Directory
     if (fs.existsSync(config.tishadow_build)) {
       fs.rm_rf(config.tishadow_build);
     }
-    // Create the tishadow build paths
+    // Create the tishadow build paths build/tishadow, build/tishadow/src, build/tishadow/dist
     fs.mkdirs([config.tishadow_build, config.tishadow_src, config.tishadow_dist]);
     file_list = fs.getList(config.resources_path);
     if (config.isModule) {
       assets_list = fs.getList(config.assets_path);
+    }
+    if (config.isHyperloop)  {
+      hyperloop_list = fs.getList(config.hyperloop_path);
     }
     i18n_list = fs.getList(config.i18n_path);
     spec_list = fs.getList(config.spec_path);
@@ -186,6 +230,8 @@ function beginCompile(callback) {
   // Build the required directory structure
   fs.mkdirs(file_list.dirs, config.tishadow_src);
   fs.mkdirs(i18n_list.dirs, config.tishadow_src);
+
+
   if(spec_list.files.length > 0) {
     if (!fs.existsSync(config.tishadow_spec)) {
       fs.mkdirSync(config.tishadow_spec, 0755);
@@ -202,6 +248,16 @@ function beginCompile(callback) {
   }).concat(spec_list.files.map(function(file) {
     return _.bind(prepare, null, path.join(config.base,file), path.join(config.tishadow_src,file));
   }));
+
+  // Add build/hyperloop/[android]/js to process_tasks
+  if (config.isHyperloop && hyperloop_list.files.length > 0) {
+  	logger.warn("JMH cli/support/compiler.js beginCompile isHyperloop=true adding files to copy as ");
+  	var file =  hyperloop_list.files[0];
+  	logger.warn("JMH copy " + path.join(config.hyperloop_path,file) + " ---to--- " + path.join(config.tishadow_src, platformfolder, file));
+    process_tasks = process_tasks.concat(hyperloop_list.files.map(function(file) {
+    	return _.bind(prepare, null, path.join(config.hyperloop_path,file), path.join(config.tishadow_src, platformfolder, file));
+    }));
+  }
 
   // if acting on a native module - see https://github.com/dbankier/TiShadow/commit/bec799b3d03660704ce6ab303f5e28110b86f051
   if (config.isModule && assets_list.files.length > 0) {
@@ -234,6 +290,12 @@ function beginCompile(callback) {
     _.bind(async.parallelLimit, null, process_tasks, 100), // source, assets, specs
     function() {
       file_list.files = file_list.files.concat(i18n_list.files).concat(spec_list.files);
+
+      // JMH Remove "hyperloop" subfolder from /resources/hyperloop for the dist zup
+      file_list.files = file_list.files.map(function(file) {
+	      return file.replace('hyperloop/', '');
+	    });
+
       if (config.isModule) {
         file_list.files = file_list.files.concat(assets_list.files);
       }
@@ -241,3 +303,5 @@ function beginCompile(callback) {
     }
   ]);
 };
+exports.beginCompile = beginCompile;
+module.exports.beginCompile = beginCompile;

@@ -26,7 +26,7 @@ function binaryAdd(left, right) {
   return new UglifyJS.AST_Binary({
     left: left,
     operator: "+",
-    right: right 
+    right: right
   });
 }
 function symbol(s) {
@@ -48,14 +48,14 @@ function argsToPath(args) {
     return path;
 }
 function couldBeAsset(name) {
-  return typeof name === 'string' && 
+  return typeof name === 'string' &&
 		(name.toLowerCase().match("image$")  ||
 		name.toLowerCase().match("icon$")  ||
     ["file", "sound", "icon", "url", "leftButton", "rightButton", "images"].indexOf(name) !== -1);
 }
 
 function doNotTouch(node) {
-  return node instanceof UglifyJS.AST_Atom || //Booleans, Nulls, Undefined, etc 
+  return node instanceof UglifyJS.AST_Atom || //Booleans, Nulls, Undefined, etc
          node instanceof UglifyJS.AST_Lambda; //Functions, etc
 }
 
@@ -73,20 +73,23 @@ var convert = new UglifyJS.TreeTransformer(null, function(node){
   //function call replacement
   if (node instanceof UglifyJS.AST_SymbolFunarg) {
     if (node.name === "require") {
-       is_titaniumified = true; 
+       is_titaniumified = true;
     }
   }
   if (node instanceof UglifyJS.AST_Call) {
     // redirect require function
-    if ( !is_titaniumified && 
+    if ( !is_titaniumified &&
          (
            (!config.isTicommonjs && node.expression.name === "require" ) ||
            (config.isTicommonjs && (node.expression.name === "tirequire" || node.expression.name === "_require") )
         )
        ) {
-      node.expression.name = "__p.require";
-      node.args[0].value = toFullPath(node.args[0].value);
-      return node;
+      //if (node.args[0].value.subst(0,7) === 'android') {
+      //} else {
+	      node.expression.name = "__p.require";
+	      node.args[0].value = toFullPath(node.args[0].value);
+	      return node;
+	    //}
     }
     if (node.expression.start.value === "console") {
       if (typeof node.expression.property === 'string') {
@@ -109,7 +112,7 @@ var convert = new UglifyJS.TreeTransformer(null, function(node){
     }
     if (node.expression.start.value.match && node.expression.start.value.match("^Ti(tanium)?$")){
       // redirect include
-      if (node.expression.end.value === "include" && 
+      if (node.expression.end.value === "include" &&
           node.expression.expression.property === undefined ) {
         return functionCall("eval", [functionCall("__p.fileContent", node.args)]);
       }
@@ -147,7 +150,7 @@ var convert = new UglifyJS.TreeTransformer(null, function(node){
       //control global listener -- App
       if (node.expression.end.value.match("^(addEventListener|removeEventListener|fireEvent)$") &&
           ["App","Gesture","Geolocation"].indexOf(node.expression.expression.property) > -1) {
-        return functionCall("__app."+node.expression.end.value, 
+        return functionCall("__app."+node.expression.end.value,
                             [new UglifyJS.AST_String({
                               value: node.expression.expression.property
                             })].concat(node.args));
@@ -163,7 +166,7 @@ var convert = new UglifyJS.TreeTransformer(null, function(node){
           }) ,node.args);
         }
       }
-      
+
       //control database source - Database
       if (node.expression.end.value === "install" &&
           node.expression.expression.property === "Database") {

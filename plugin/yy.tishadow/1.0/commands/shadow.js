@@ -49,17 +49,84 @@ exports.startAppify = function startAppify(logger, tmp_dir, platform, ip_address
   if (ip_address) {
     args = args.concat(['-o', ip_address]);
   }
+  logger.warn("JMH commands/shadow/startAppify ts " + args.join(" "));
   var appify = spawn('ts', args, {stdio: ["ignore", 1, 2]});
   appify.on('error',function() {
     logger.error("Appify Failed.");
     exit();
   });
   appify.on('exit',function() {
+	  logger.warn("JMH commands/shadow/startAppify Alloy process completed...");
     if (callback) {
+		  logger.warn("JMH commands/shadow/startAppify exit to callback...");
       callback();
     } else {
+		  logger.warn("JMH commands/shadow/startAppify exit to buildapp...");
       exports.buildApp(logger,['build', '--project-dir',tmp_dir, '-p', platform]);
       exports.startWatch(logger, platform);
+    }
+  });
+  children.push(appify);
+};
+
+exports.startHLCompile = function startHLCompile(logger, tmp_dir, platform, ip_address, callback) {
+  fs.existsSync(tmp_dir) ||  fs.mkdirSync(tmp_dir);
+  logger.info("Preparing App...");
+  var args = ['hlcompile', '-d', tmp_dir, "-P", platform];
+  if (ip_address) {
+    args = args.concat(['-o', ip_address]);
+  }
+  logger.warn("JMH commands/shadow/startHLCompile ts " + args.join(" "));
+  var appify = spawn('ts', args, {stdio: ["ignore", 1, 2]});
+  appify.on('error',function() {
+    logger.error("Appify Failed.");
+    exit();
+  });
+  appify.on('exit',function() {
+	  logger.warn("JMH commands/shadow startHLCompile exit. Running callback...");
+    if (callback) {
+      callback();
+    }
+  });
+  children.push(appify);
+};
+
+exports.hlBundle = function hlAppify(logger, tmp_dir, platform, ip_address, callback) {
+  var args = ['hlappify', '-d', tmp_dir, "-P", platform];
+  if (ip_address) {
+    args = args.concat(['-o', ip_address]);
+  }
+  logger.warn("JMH commands/shadow/hlAppify ts " + args.join(" "));
+  var appify = spawn('ts', args, {stdio: ["ignore", 1, 2]});
+  appify.on('error',function() {
+    logger.error("hlAppify Failed.");
+    exit();
+  });
+  appify.on('exit',function() {
+	  logger.info("JMH commands/shadow hlAppify exit. Running callback...");
+    if (callback) {
+      callback();
+    }
+  });
+  children.push(appify);
+};
+
+exports.hlAppify = function hlAppify(logger, tmp_dir, platform, ip_address, callback) {
+  logger.warn("JMH commands/shadow/hlAppify UNUSED UNUSED UNUSED ts " + args.join(" "));
+  var args = ['hlappify', '-d', tmp_dir, "-P", platform];
+  if (ip_address) {
+    args = args.concat(['-o', ip_address]);
+  }
+  logger.warn("JMH commands/shadow/hlAppify ts " + args.join(" "));
+  var appify = spawn('ts', args, {stdio: ["ignore", 1, 2]});
+  appify.on('error',function() {
+    logger.error("hlAppify Failed.");
+    exit();
+  });
+  appify.on('exit',function() {
+	  logger.info("JMH commands/shadow hlAppify exit. Running callback...");
+    if (callback) {
+      callback();
     }
   });
   children.push(appify);
@@ -68,7 +135,8 @@ exports.startAppify = function startAppify(logger, tmp_dir, platform, ip_address
 exports.buildApp = function buildApp(logger, args) {
   logger.info("Building App...");
   var build;
-  if (config.useAppcCLI) {
+  if (true || config.useAppcCLI) {
+	  logger.warn("JMH commands/shadow/buildApp appc ti " + args.join(" "));
     build = spawn("appc", ['ti'].concat(args), {stdio: "inherit"});
   } else {
     build = spawn('ti', args, {stdio: "inherit"});

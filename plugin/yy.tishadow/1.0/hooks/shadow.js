@@ -37,16 +37,22 @@ function preValidateHook(build,finished) {
 function preCompileHook(build, finished) {
   if (build.cli.argv.$_.indexOf('--shadow') === -1 &&
       build.cli.argv.$_.indexOf('--tishadow') === -1 &&
+      build.cli.argv.$_.indexOf('--hlcompile') === -1 &&
+      build.cli.argv.$_.indexOf('--hlbundle') === -1 &&
+      build.cli.argv.$_.indexOf('--hlappify') === -1 &&
       build.cli.argv.$_.indexOf('--appify') === -1) {
     return finished();
   }
 
   var index;
   var isExpress = build.cli.argv.$_.indexOf('--appify') === -1;
+  var isHLCompile = build.cli.argv.$_.indexOf('--hlcompile') > -1;
+  var isHLBundle = build.cli.argv.$_.indexOf('--hlbundle') > -1;
+  var isHLAppify = build.cli.argv.$_.indexOf('--hlappify') > -1;
 
   // pass through arguments
   var args = build.cli.argv.$_
-  .filter(function(el) { return el !== "--shadow" && el !== "--tishadow" && el !== "--appify"});
+  .filter(function(el) { return el !== "--shadow" && el !== "--tishadow" && el !== "--hlcompile" && el !== "--hlappify" && el !== "--appify"});
 
   // temp appify build path
   var new_project_dir = path.join(build.projectDir, 'build', 'appify');
@@ -75,17 +81,40 @@ function preCompileHook(build, finished) {
 
   // appify -> express
   function launch(ip_address){
-    commands.startAppify(logger, new_project_dir, build.cli.argv.platform, ip_address, function() {
-      if (args.indexOf("-p") === -1 && args.indexOf("--platform") === -1) {
-        args.push("-p");
-        args.push(build.cli.argv.platform);
-      }
-      commands.buildApp(logger,args)
-      if (isExpress) {
-        commands.startServer(logger);
-        commands.startWatch(logger, build.cli.argv.platform, ip_address);
-      }
-    });
+  	if (isHLCompile) {
+      logger.warn('JMH hooks/shadow hlcompile ... starting command/startHLCompile');
+	    commands.startHLCompile(logger, new_project_dir, build.cli.argv.platform, ip_address, function() {
+	    	logger.warn('JMH hooks/shadow hlcompile callback ... exiting');
+	    });
+  	} else if (isHLBundle) {
+      logger.warn('JMH hooks/shadow hlbundle ... starting command/hlBundle');
+				if (args.indexOf("-p") === -1 && args.indexOf("--platform") === -1) {
+	        args.push("-p");
+	        args.push(build.cli.argv.platform);
+	      }
+	    commands.hlBundle(logger, new_project_dir, build.cli.argv.platform, ip_address, function() {
+	    	logger.warn('JMH hooks/shadow hlbundle callback ... exiting');
+	    });
+  	} else if (isHLAppify) {
+	      logger.warn('JMH hooks/shadow hlappify ... starting command/hlAppify');
+				if (args.indexOf("-p") === -1 && args.indexOf("--platform") === -1) {
+	        args.push("-p");
+	        args.push(build.cli.argv.platform);
+	      }
+	      commands.buildApp(logger, args, true);
+  	} else {
+	    commands.startAppify(logger, new_project_dir, build.cli.argv.platform, ip_address, function() {
+	      if (args.indexOf("-p") === -1 && args.indexOf("--platform") === -1) {
+	        args.push("-p");
+	        args.push(build.cli.argv.platform);
+	      }
+	      commands.buildApp(logger,args, false)
+	      if (isExpress) {
+	        commands.startServer(logger);
+	        commands.startWatch(logger, build.cli.argv.platform, ip_address);
+	      }
+	    });
+	  }
   }
 
   if (config.host) {

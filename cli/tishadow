@@ -195,6 +195,37 @@ program.command('appify')
   .option('-P, --platform <platform>', 'target platform')
   .action(require('./support/appify').build);
 
+program.command('hlcompile')
+  .description('generate code and resources ready to appify'.grey)
+  .option('-d, --destination <path>', 'target path for generated project')
+  .option('-o, --host <host>', 'set server host name / ip address')
+  .option('-p, --port <port>', 'set server port')
+  .option('-r, --room <room>', 'set server room')
+  .option('-m, --modify-app-id', 'appends .appifed to the applicatin id')
+  .option('-P, --platform <platform>', 'target platform')
+  .action(require('./support/appify').hlcompile);
+
+program.command('hlbundle')
+  .description('generate an appified TiShadow dist zip w hyperloop resources'.grey)
+  .option('-d, --destination <path>', 'target path for generated project')
+  .option('-o, --host <host>', 'set server host name / ip address')
+  .option('-p, --port <port>', 'set server port')
+  .option('-r, --room <room>', 'set server room')
+  .option('-m, --modify-app-id', 'appends .appifed to the applicatin id')
+  .option('-P, --platform <platform>', 'target platform')
+  .action(require('./support/appify').hlbundle);
+
+program.command('hlappify')
+  .description('generate an appified TiShadow app w hyperloop resources'.grey)
+  .option('-d, --destination <path>', 'target path for generated project')
+  .option('-o, --host <host>', 'set server host name / ip address')
+  .option('-p, --port <port>', 'set server port')
+  .option('-r, --room <room>', 'set server room')
+  .option('-m, --modify-app-id', 'appends .appifed to the applicatin id')
+  .option('-P, --platform <platform>', 'target platform')
+  .action(require('./support/appify').hlappify);
+
+
 program.command('express')
   .description('install a titanium cli command plugin `shadow` for simple tishadow development')
   .action(function() {

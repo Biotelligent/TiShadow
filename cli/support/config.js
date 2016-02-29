@@ -89,6 +89,9 @@ config.buildPaths = function(env, callback) {
     config.tishadow_dist     = path.join(config.tishadow_build, 'dist');
     config.fs_map_path       = path.join(config.tishadow_build, 'fs_map.json');
 
+    // Hyperloop creates js wrappers in  build/hyperloop/[platform]/js
+    config.hyperloop_path   = path.join(config.build_path, 'hyperloop');  // eg. build/hyperloop/android/js
+
     var app_name = config.app_name = result.name[0] || "bundle";
 
     config.isModule = fs.existsSync(config.assets_path) && result.isModule;
@@ -101,6 +104,9 @@ config.buildPaths = function(env, callback) {
     config.bundle_file       = path.join(config.tishadow_dist, config.bundle_name + ".zip");
     config.jshint_path       = fs.existsSync(config.alloy_path) ? config.alloy_path : config.resources_path;
     config.isAlloy = fs.existsSync(config.alloy_path);
+    config.isHyperloop = fs.existsSync(path.join(config.base, 'appc.js'));
+    logger.warn("JMH /cli/support/config.js isHyperloop="+config.isHyperloop);
+
     if (!config.platform && config.isAlloy) {
       var deploymentTargets = [];
       result['deployment-targets'][0].target.forEach(function(t) {

@@ -78,7 +78,7 @@ exports.copyCoreProject = function(env) {
     wrench.copyDirSyncRecursive(path.join(tishadow_app, 'Resources'), path.join(dest,'Resources'));
     wrench.copyDirSyncRecursive(path.join(tishadow_app, 'modules'), path.join(dest,'modules'), {preserve: true, preserveFiles: true});
   } else {
-    logger.info("Creating new app...");
+    logger.warn("JMH cli/support/appify copyCoreProject creating new app from " + tishadow_app + " into " + dest + "...");
 
     wrench.copyDirSyncRecursive(tishadow_app, dest);
 
@@ -94,6 +94,88 @@ exports.copyCoreProject = function(env) {
   return true;
 };
 
+exports.afterbuild = function afterbuild(env) {
+  logger.warn("JMH cli/support/appify.js afterbuild copying project resources");
+
+  var dest = env.destination || ".";
+  var dest_resources = path.join(dest,"Resources");
+  var dest_fonts = path.join(dest_resources,"fonts");
+  var dest_modules = path.join(dest,"modules");
+  var dest_platform = path.join(dest,"platform");
+  var dest_plugins = path.join(dest,"plugins");
+  var template_file = path.join(tishadow_app,"Resources","appify.js");
+  //set to bundle mode
+  env._name = "bundle";
+
+
+  //copy tishadow src
+  if (exports.copyCoreProject(env)) {
+	  logger.warn("JMH cli/support/appify.js afterbuild re-writing app.js and tiapp.xml");
+
+    // generate app.js
+    var template = fs.readFileSync(template_file,'utf8');
+    var new_app_js = _.template(template)({proto: "http" + (config.isTiCaster ? "s" : ""), host:config.host, port: config.port, room: config.room, app_name: config.app_name, date: (new Date()).getTime()});
+    fs.writeFileSync(path.join(dest_resources,"app.js"),new_app_js);
+    //copy fonts
+    if(fs.existsSync(config.fonts_path)) {
+      wrench.copyDirSyncRecursive(config.fonts_path,dest_fonts);
+    }
+    mkdirp.sync(dest_platform);
+    //copy splash screen and icons
+    ['iphone','android','blackberry','mobileweb','tizen','commonjs'].forEach(function(platform) {
+      if(fs.existsSync(path.join(config.resources_path,platform))) {
+        wrench.copyDirSyncRecursive(path.join(config.resources_path,platform),path.join(dest_resources,platform),{
+          filter: new RegExp("(\.png|images|res-.*|fonts|\.otf|\.ttf|\.bundle)$","i"),
+          whitelist: true
+        });
+      }
+      if(fs.existsSync(path.join(config.modules_path,platform))) {
+        wrench.copyDirSyncRecursive(path.join(config.modules_path,platform),path.join(dest_modules,platform),{preserve:true});
+      }
+      if(fs.existsSync(path.join(config.platform_path,platform))) {
+        wrench.copyDirSyncRecursive(path.join(config.platform_path,platform),path.join(dest_platform,platform));
+      }
+    });
+    if(fs.existsSync(config.plugins_path)) {
+        wrench.copyDirSyncRecursive(config.plugins_path,dest_plugins);
+    }
+    // copy DefaultIcon.png if it exists
+    if (fs.existsSync(path.join(config.base, "DefaultIcon.png"))) {
+      fs.createReadStream(path.join(config.base, "DefaultIcon.png")).pipe(fs.createWriteStream(path.join(dest, "DefaultIcon.png")));
+    }
+    // JMH Hyperloop - copy appc.js if it exists (also Podfile & Pods folder?)
+    if (fs.existsSync(path.join(config.base, "appc.js"))) {
+      fs.createReadStream(path.join(config.base, "appc.js")).pipe(fs.createWriteStream(path.join(dest, "appc.js")));
+    }
+
+    // copy tiapp.xml and inject modules
+    var source_tiapp = fs.readFileSync(path.join(config.base,"tiapp.xml"),'utf8');
+
+    //if source tiapp is missing a modules tag
+    if (source_tiapp.indexOf("</modules>") === -1 && source_tiapp.indexOf("<modules/>") === -1) {
+      source_tiapp = source_tiapp.replace("</ti:app>", "  <modules/>\n</ti:app>");
+    }
+
+    required_modules.push("</modules>")
+    var injected_xml = required_modules.concat(required_properties);
+    var new_tiapp_xml = source_tiapp
+                     .replace(/<plugin[^>]*>ti\.alloy<\/plugin>/,"")
+                     .replace(/<property[^>]+ti\.android\.bug2373\.finishfalseroot[^>]+>true<\/property>/,'')
+                     .replace('android:launchMode="singleTop"','')
+                     .replace("<modules/>","<modules></modules>")
+                     .replace("</modules>",injected_xml.join("\n"))
+                     .replace("</modules>", '</modules>\n  <property name="tishadow:version" type="string">'+ package_version + '</property>');
+    if(config.modifyAppId) {
+      new_tiapp_xml = new_tiapp_xml.replace("</id>",".appified</id>");
+    }
+    fs.writeFileSync(path.join(dest,"tiapp.xml"), new_tiapp_xml);
+    // copy the bundle
+    fs.writeFileSync(path.join(dest_resources, config.app_name.replace(/ /g,"_") + ".zip"),fs.readFileSync(config.bundle_file));
+
+    logger.warn("JMH cli/support/appify.js afterbuild completed");
+  }
+};
+
 exports.build = function(env) {
   var dest = env.destination || ".";
   var dest_resources = path.join(dest,"Resources");
@@ -107,67 +189,74 @@ exports.build = function(env) {
   env._name = "bundle";
   var compiler = require("./compiler");
   //bundle the source
-  compiler(env,function() {
+  compiler(env, function() { exports.afterbuild(env); });
+};
 
-    //copy tishadow src
-    if (exports.copyCoreProject(env)) {
-      // generate app.js
-      var template = fs.readFileSync(template_file,'utf8');
-      var new_app_js = _.template(template)({proto: "http" + (config.isTiCaster ? "s" : ""), host:config.host, port: config.port, room: config.room, app_name: config.app_name, date: (new Date()).getTime()});
-      fs.writeFileSync(path.join(dest_resources,"app.js"),new_app_js);
-      //copy fonts
-      if(fs.existsSync(config.fonts_path)) {
-        wrench.copyDirSyncRecursive(config.fonts_path,dest_fonts);
-      }
-      mkdirp.sync(dest_platform);
-      //copy splash screen and icons
-      ['iphone','android','blackberry','mobileweb','tizen','commonjs'].forEach(function(platform) {
-        if(fs.existsSync(path.join(config.resources_path,platform))) {
-          wrench.copyDirSyncRecursive(path.join(config.resources_path,platform),path.join(dest_resources,platform),{
-            filter: new RegExp("(\.png|images|res-.*|fonts|\.otf|\.ttf|\.bundle)$","i"),
-            whitelist: true
-          });
-        }
-        if(fs.existsSync(path.join(config.modules_path,platform))) {
-          wrench.copyDirSyncRecursive(path.join(config.modules_path,platform),path.join(dest_modules,platform),{preserve:true});
-        }
-        if(fs.existsSync(path.join(config.platform_path,platform))) {
-          wrench.copyDirSyncRecursive(path.join(config.platform_path,platform),path.join(dest_platform,platform));
-        }
-      });
-      if(fs.existsSync(config.plugins_path)) {
-          wrench.copyDirSyncRecursive(config.plugins_path,dest_plugins);
-      }
-      // copy DefaultIcon.png if it exists
-      if (fs.existsSync(path.join(config.base, "DefaultIcon.png"))) {
-        fs.createReadStream(path.join(config.base, "DefaultIcon.png")).pipe(fs.createWriteStream(path.join(dest, "DefaultIcon.png")));
-      }
+exports.hlcompile = function(env) {
+  var dest = env.destination || ".";
+  var dest_resources = path.join(dest,"Resources");
+  var dest_fonts = path.join(dest_resources,"fonts");
+  var dest_modules = path.join(dest,"modules");
+  var dest_platform = path.join(dest,"platform");
+  var dest_plugins = path.join(dest,"plugins");
+  var template_file = path.join(tishadow_app,"Resources","appify.js");
 
-      // copy tiapp.xml and inject modules
-      var source_tiapp = fs.readFileSync(path.join(config.base,"tiapp.xml"),'utf8');
+  //set to bundle mode
+  env._name = "bundle";
+  var compiler = require("./compiler");
+  //bundle the source
+  compiler(env, function() {
+    logger.warn('JMH cli/support/appify hlcompile callback');
+  },
+  true);
+};
 
-      //if source tiapp is missing a modules tag
-      if (source_tiapp.indexOf("</modules>") === -1 && source_tiapp.indexOf("<modules/>") === -1) {
-        source_tiapp = source_tiapp.replace("</ti:app>", "  <modules/>\n</ti:app>");
+exports.hlbundle = function(env) {
+  config.buildPaths(env, function() {
+	  logger.warn('JMH cli/support/appify hlbundle config.res_alloy_path='+config.res_alloy_path);
+  	['iphone','android'].forEach(function(platform) {
+  		var srcpath = path.join(config.resources_path,(platform === 'ios' ? 'iphone' : platform),'alloy');
+  		logger.warn('JMH cli/support/appify hlappify srcpath='+srcpath);
+      //if (fs.existsSync(config.res_alloy_path)) {
+      if (fs.existsSync(srcpath)) {
+        wrench.copyDirSyncRecursive(
+          config.res_alloy_path,
+          path.join(config.resources_path,(platform === 'ios' ? 'iphone' : platform),'alloy'),
+          {preserve:true,preserveFiles:true}
+        );
       }
+	  });
 
-      required_modules.push("</modules>")
-      var injected_xml = required_modules.concat(required_properties);
-      var new_tiapp_xml = source_tiapp
-                       .replace(/<plugin[^>]*>ti\.alloy<\/plugin>/,"")
-                       .replace(/<property[^>]+ti\.android\.bug2373\.finishfalseroot[^>]+>true<\/property>/,'')
-                       .replace('android:launchMode="singleTop"','')
-                       .replace("<modules/>","<modules></modules>")
-                       .replace("</modules>",injected_xml.join("\n"))
-                       .replace("</modules>", '</modules>\n  <property name="tishadow:version" type="string">'+ package_version + '</property>');
-      if(config.modifyAppId) {
-        new_tiapp_xml = new_tiapp_xml.replace("</id>",".appified</id>");
+    config.isBundle = true;
+		var compiler = require("./compiler");
+	  compiler.beginCompile(function() {
+		  exports.afterbuild(env);
+		});
+	});
+};
+
+exports.hlappify = function(env) {
+	// From compiler.js. This needs to be done for each platform toolbar
+  config.buildPaths(env, function() {
+	  logger.warn('JMH cli/support/appify hlappify config.res_alloy_path='+config.res_alloy_path);
+  	['iphone','android'].forEach(function(platform) {
+  		var srcpath = path.join(config.resources_path,(platform === 'ios' ? 'iphone' : platform),'alloy');
+  		logger.warn('JMH cli/support/appify hlappify srcpath='+srcpath);
+      //if (fs.existsSync(config.res_alloy_path)) {
+      if (fs.existsSync(srcpath)) {
+        wrench.copyDirSyncRecursive(
+          config.res_alloy_path,
+          path.join(config.resources_path,(platform === 'ios' ? 'iphone' : platform),'alloy'),
+          {preserve:true,preserveFiles:true}
+        );
       }
-      fs.writeFileSync(path.join(dest,"tiapp.xml"), new_tiapp_xml);
-      // copy the bundle
-      fs.writeFileSync(path.join(dest_resources, config.app_name.replace(/ /g,"_") + ".zip"),fs.readFileSync(config.bundle_file));
+	  });
 
-      logger.info("TiShadow app ready");
-    }
-  });
-}
+    config.isBundle = true;
+		var compiler = require("./compiler");
+	  compiler.beginCompile(function() {
+		  exports.afterbuild(env);
+		});
+	});
+};
+
