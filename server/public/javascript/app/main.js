@@ -114,6 +114,42 @@ app.controller('mainController', ['$scope', '$timeout', '$http', '$sce', functio
   $scope.closeApp = function() {
     TiShadow.socket.emit("snippet", {code: "closeApp();"});
   }
+  $scope.clearLogs = function() {
+    $apply($scope);
+    $("#console").setValue("Cleared");
+    $scope.logs = [];
+    TiShadow.socket.emit("snippet", {code: "clearLogs();"});
+  }
+  $scope.screenShot = function() {
+    TiShadow.socket.emit("snippet", {code: "screenshot();"});
+  }
+  $scope.loadREPLFile = function() {
+    //var callback = function (data, status, xhr) {
+    //  //data will be the xml returned from the server
+    //  if (status == 'success') {
+    //    //var editor = ace.edit("editor");
+    //    //apparently, only modes supported are 'html', 'javascript' & 'text'
+    //    editor.setValue(data);
+    //  }
+    //};
+    ////using jQuery to fire off an ajax request to load the xml,
+    ////using our callback as the success function
+    ////var txt = document.getElementById('editor').innerHTML;
+    //window.requestFileSystem = window.requestFileSystem ||
+    //    window.webkitRequestFileSystem;
+    //
+    //// Create a variable that will store a reference to the FileSystem.
+    //var filesystem = null;
+    // $.ajax(
+    //    {
+    //      url : '/testing/cd_catalog.xml',
+    //      dataType : 'text', //explicitly requesting the xml as text, rather than an xml document
+    //      success : callback
+    //    }
+    //);
+    //
+    //"/Users/justin/Develop/BiotelligentWorkspace/zoopachat/repl/zoopa-listselect.js";
+  }
   $scope.keypress = function(evt, key,value, stack) {
     if (evt.which===13){
       if (value.match(/^Ti(tanium)?\./)) {
@@ -138,9 +174,17 @@ app.controller('mainController', ['$scope', '$timeout', '$http', '$sce', functio
 
   $timeout(function(){
     editor = ace.edit("editor");
-    editor.setTheme("ace/theme/twilight");
+    //editor.setTheme("ace/theme/twilight");
+    //JMH
+    editor.setTheme("ace/theme/monokai");
+
     var JavaScriptMode = require("ace/mode/javascript").Mode;
     editor.getSession().setMode(new JavaScriptMode());
+
+    editor.getSession().setTabSize(2);
+    editor.setHighlightActiveLine(true);
+    editor.resize();
+
 
     $("#editor").keypress(function (event) {
       if ((event.which == 115 && event.ctrlKey) || (event.which == 115 && event.metaKey)){

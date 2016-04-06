@@ -1,4 +1,4 @@
-TiShadow
+TiShadow JMH
 ========
 
 TiShadow provides Titanium developers the ability to deploy apps, run tests or execute code snippets live across all running iOS and Android devices.

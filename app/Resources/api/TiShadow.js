@@ -145,7 +145,7 @@ exports.disconnect = function() {
 };
 exports.clearLogs = function() {
   logs = [];
-  log.info('TiShadow.js cleared logs JMH');
+  exports.emitLog('TiShadow.js cleared logs JMH');
 };
 
 var bundle;
